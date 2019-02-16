@@ -1,0 +1,82 @@
+---
+title: "Practical Machine learning assessment"
+output: 
+  html_document:
+    keep_md: true
+---
+#INTRODUCTION
+This project is about predicting the manner in which the subjects performed weight lifting exercise. The data is collected from devices such as Jawbone Up, Nike FuelBand, and Fitbit.
+
+##Data Preprocessing
+Set the working driectory and load the required libraries and set seed for results to be Reproducible.
+```{r, echo=TRUE, results='hide', warning=FALSE, message=FALSE}
+setwd("C:\\project_8")
+library(caret)
+library(randomForest)
+set.seed(50)
+```
+Load the given csv file to the variables
+```{r}
+pml_train <- read.csv("pml-training.csv",header=T,sep=",",na.strings=c("NA","NaN", " ", "", "#DIV/0!"))
+pml_test <- read.csv("pml-testing.csv",header=T,sep=",",na.strings=c("NA","NaN", " ", "", "#DIV/0!"))
+```
+Removing the first column that represents the ID
+```{r}
+pml_train <- pml_train[,-1]
+pml_test <- pml_test[,-1]
+```
+##Cleansing the data for the model ( We are using Random Forest method here)
+Remove columns that do not satisfy is applied before applying to the model
+```{r}
+remove_train <- c((colSums(!is.na(pml_train[,-ncol(pml_train)])) >= 0.6*nrow(pml_train)))
+pml_train   <-  pml_train[,remove_train]
+```
+Create data partitions for training and validation
+```{r}
+trainPart <- createDataPartition(pml_train$classe, p=0.6, list=FALSE)
+pml_training <- pml_train[trainPart,]
+pml_validation <- pml_train[-trainPart,]
+```
+Remove the near zero variance columns
+```{r}
+Train_NonZeroVar <- nearZeroVar(pml_training)
+Validate_NonZeroVar <- nearZeroVar(pml_validation)
+pml_train_without_nzv <- pml_training[, -Train_NonZeroVar]
+pml_validate_without_nzv <- pml_validation[,-Validate_NonZeroVar]
+```
+##Building the model
+```{r}
+PredictModel <- randomForest(classe~.,data=pml_train_without_nzv,importance=TRUE)
+PredictModel
+```
+Now evaluate the results through the confusion matrix
+```{r}
+confusionMatrix(predict(PredictModel,newdata=pml_validate_without_nzv[,-ncol(pml_validate_without_nzv)]),
+                pml_validate_without_nzv$classe)
+```
+Check the accuracy of the model
+```{r}
+accuracy<-c(as.numeric(predict(PredictModel,newdata=pml_validate_without_nzv
+                            [,-ncol(pml_validate_without_nzv)])==pml_validate_without_nzv$classe))
+accuracy<-sum(accuracy)*100/nrow(pml_validate_without_nzv)
+accuracy
+```
+We can see our model is having an accuracy of 99.89 % and the out-of-sample error is only 0.11%
+
+##Testing the model
+Clean the test data as same as like we did for training set
+```{r}
+remove_test <- c((colSums(!is.na(pml_test[,-ncol(pml_test)])) >= 0.6*nrow(pml_test)))
+pml_test   <-  pml_test[,remove_test]
+pml_test <- pml_test[,-ncol(pml_test)]
+```
+Making the testing dataset to same class and structure of training dataset and apply dummy row id for dummy in the test data
+```{r}
+pml_test <- rbind(pml_train[100, -59] , pml_test)
+row.names(pml_test) <- c(100,1:20)
+```
+Testing the model with the test data
+```{r}
+Prediction<- predict(PredictModel,newdata=pml_test[-1,])
+Prediction
+```
